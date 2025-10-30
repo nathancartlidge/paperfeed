@@ -1,0 +1,14 @@
+[project]
+name = "paperfeed"
+version = "0.1.0"
+description = "Python Driver for the Dolewa LX-D5"
+requires-python = ">=3.12"
+dependencies = [
+    "bleak>=1.1.1",
+]
+
+[tool.uv]
+package = true
+
+[project.scripts]
+bt_detect = "paperfeed.driver.scan:scan_sync"
