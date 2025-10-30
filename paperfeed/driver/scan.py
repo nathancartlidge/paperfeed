@@ -42,6 +42,7 @@ async def scan() -> None:
 
     logger.info("Found %d printer(s)", printers)
 
+
 def scan_sync():
     logging.basicConfig(level=logging.DEBUG)
     future = scan()

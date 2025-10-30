@@ -5,6 +5,7 @@ description = "Python Driver for the Dolewa LX-D5"
 requires-python = ">=3.12"
 dependencies = [
     "bleak>=1.1.1",
+    "numpy>=2.3.4",
 ]
 
 [tool.uv]
