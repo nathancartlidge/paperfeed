@@ -9,6 +9,7 @@ class FunnyPackets:
     PRINTING_PAUSED: bytes = b"\x5a\x08"
     PRINTING_FINISHED: bytes = b"\x5a\x06"
     LOST_PACKET: bytes = b"\x5a\x05"
+    PRINT_EVENT: bytes = b"\x5a\x04"
     HARDWARE_INFO: bytes = b"\x5a\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 
     STATIC_CHALLENGE: bytes = b"\x00" * 10
@@ -27,7 +28,7 @@ class FunnyPackets:
         return b"\x5a\x0c" + density.to_bytes(1, "big")
 
     @staticmethod
-    def random_0a():
+    def challenge():
         """Handshake phase 1 - challenge
 
         Handshake involves challenge-response authentication before
@@ -47,10 +48,10 @@ class FunnyPackets:
         other response byte, regardless of other bytes or the position), that's
         why we use only the first byte out of 10, and multiply it.
         """
-        return b"\x5a\x0a" + FunnyPackets.STATIC_CHALLENGE
+        return FunnyPackets.HANDSHAKE_0A + FunnyPackets.STATIC_CHALLENGE
 
     @staticmethod
-    def reply_0b(bdaddr):
+    def response(bdaddr):
         """Handshake phase 2 - response
 
         The second step of pointless authentication.
@@ -73,7 +74,7 @@ class FunnyPackets:
         payload_bytes = FunnyPackets.STATIC_CHALLENGE[0:1] + binascii.unhexlify(mac_hex)
         response = (crc16_xmodem(payload_bytes) >> 8) & 0xFF
 
-        return b"\x5a\x0b" + bytes([response]) * 10
+        return FunnyPackets.HANDSHAKE_0B + bytes([response]) * 10
 
     @staticmethod
     def start_print(num_lines: int):
@@ -89,9 +90,9 @@ class FunnyPackets:
         Print Start/Stop packets.
         num_lines are "funny" lines, i.e. two raster lines combined.
         """
-        return b"\x5a\x04" + num_lines.to_bytes(2, "big") + end.to_bytes(2, "little")
+        return FunnyPackets.PRINT_EVENT + num_lines.to_bytes(2, "big") + end.to_bytes(2, "little")
 
     @staticmethod
-    def print_line(line_no, data):
+    def print_line(line_no: int, data: bytes):
         """Raster data"""
         return b"\x55" + line_no.to_bytes(2, "big") + data + b"\x00"

@@ -1,17 +1,19 @@
 import asyncio
+import datetime
 import logging
 from dataclasses import dataclass
 from typing import NamedTuple
 
-import numpy as np
 from bleak import BleakClient, BleakGATTCharacteristic
 
 from paperfeed.driver.constants import FunnyPackets
+from paperfeed.driver.image import Image
 
 
 class Packet(NamedTuple):
     header: bytes
     body: bytes
+    timestamp: str
 
 
 @dataclass
@@ -21,50 +23,27 @@ class PrinterStatus:
     battery_charging: bool
     overheat: bool
     paper: bool
+    packet: Packet
 
-
-@dataclass(frozen=True)
-class Image:
-    density: int
-    data: np.ndarray[np.bool]
-
-    def __post_init__(self):
-        assert self.data.shape[0] == 384, "invalid width (should be 384)"
-
-    @property
-    def funny_height(self):
-        return round(self.data.shape[1] / 2)
-
-    @property
-    def start_messages(self) -> list[bytearray]:
-        return [
-            FunnyPackets.density(self.density),
-            FunnyPackets.start_print(num_lines=self.funny_height),
-        ]
-
-    @property
-    def end_messages(self) -> list[bytearray]:
-        return [FunnyPackets.end_print(num_lines=self.funny_height)]
-
-    @property
-    def line_packets(self) -> list[bytearray]:
-        width, height = self.data.shape
-        assert width == 384, "invalid width (should be 384)"
-
-        lines = []
-        for line in self.data:
-            lines.append(np.packbits(line))
-
-        if len(lines) % 2 == 1:
-            lines.append(FunnyPackets.BLANK_LINE)
-
-        funny_lines = [
-            FunnyPackets.print_line(i, top + bot)
-            for i, (top, bot) in enumerate(zip(lines[::2], lines[1::2]))
-        ]
-        assert len(funny_lines) == self.funny_height
-
-        return funny_lines
+    @classmethod
+    def from_packet(cls, packet: Packet):
+        """Parse the packet structure"""
+        # data structure:
+        #  0 | battery_level
+        #  1 | no_paper
+        #  2 | charging
+        #  3 | overheat
+        #  4 | lowVoltage
+        #  5 | density
+        # weirdly this doesn't seem to be set properly?
+        return cls(
+            battery=packet.body[0],
+            paper=not packet.body[1],
+            battery_charging=bool(packet.body[2]),
+            overheat=bool(packet.body[3]),
+            battery_low=bool(packet.body[4]),
+            packet=packet,
+        )
 
 
 class Driver(FunnyPackets):
@@ -107,18 +86,21 @@ class Driver(FunnyPackets):
         await self._client.start_notify(self.READ, self._read_callback)
 
         self._logger.info("Starting handshake")
-        await self._write(self.HARDWARE_INFO)
+        self._logger.debug("> Fetching hardware info (ignored)")
+        await self._query(self.HARDWARE_INFO)
 
-        await self._write(self.random_0a())
-        response = await self._read()
+        self._logger.debug("> Sending A packet")
+        challenge_response = await self._query(self.challenge())
 
-        if response.header != self.HANDSHAKE_0A:
+        if challenge_response.header != self.HANDSHAKE_0A:
+            self._logger.warning("failed handshake challenge: %s", challenge_response)
             return False
 
-        await self._write(self.reply_0b(self._address))
-        response = await self._read()
+        self._logger.debug("> Sending B packet")
+        response_response = await self._query(self.response(self._address))
 
-        if response.header != self.HANDSHAKE_0B or response.body[0] != 0x01:
+        if response_response.header != self.HANDSHAKE_0B or response_response.body[0] != 0x01:
+            self._logger.warning("failed handshake response: %s", response_response)
             return False
 
         return True
@@ -126,44 +108,46 @@ class Driver(FunnyPackets):
     async def _read_callback(self, sender: BleakGATTCharacteristic, data: bytearray):
         header = data[0:2]
         body = data[2:]
-        await self._messages.put(Packet(header, body))
+
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        timestamp = now.isoformat()
+
+        packet = Packet(header, body, timestamp)
+        await self._messages.put(packet)
 
         if header == self.STATUS:
-            # data structure:
-            #  0 | battery_level
-            #  1 | no_paper
-            #  2 | charging
-            #  3 | overheat
-            #  4 | lowVoltage
-            #  5 | density
-            self._status = PrinterStatus(
-                battery=body[0],
-                paper=not body[1],
-                battery_charging=bool(body[2]),
-                overheat=bool(body[3]),
-                battery_low=bool(body[4]),
-            )
-            self._logger.info("Status report: %s", self._status)
-            if body[3]:
+            self._logger.info("New status")
+            self._status = PrinterStatus.from_packet(packet)
+            if self._status.overheat:
                 self._logger.warning("Printer Overheating!")
         elif header == self.LOST_PACKET:
             self._logger.warning("Lost packet")
 
-    async def _write(self, data):
+    async def _write(self, data: bytes) -> None:
         assert self._client is not None, "No client (call inside context mgr)"
         return await self._client.write_gatt_char(self.WRITE, data, response=False)
 
     async def _read(self) -> Packet:
         return await self._messages.get()
 
+    async def _query(self, data: bytes) -> Packet:
+        """Combined query and response"""
+        # there is a slight race condition here, but we ignore it
+        assert self._messages.empty(), "Messages not empty"
+        await self._write(data)
+        response = await self._messages.get()
+        if data[0:2] != response.header:
+            raise ValueError("Header mismatch")
+        return response
+
     async def print(self, image: Image) -> bool:
         assert self._client is not None, "No client (call inside context mgr)"
+        lines = image.line_packets
 
         for command in image.start_messages:
             await self._write(command)
             await asyncio.sleep(self.DELAY)
 
-        lines = image.line_packets
         next_line = 0
         waiting_for_finish_count = 0
         print_success = False

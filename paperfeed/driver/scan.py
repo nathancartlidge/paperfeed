@@ -9,10 +9,8 @@ import logging
 
 from bleak import BleakError, BleakScanner
 
-TIMEOUT = 2
 
-
-async def scan() -> None:
+async def scan(timeout: int = 1) -> list[str]:
     """
     Scan for Xiqi / Funnyprint devices
 
@@ -22,14 +20,14 @@ async def scan() -> None:
     logger = logging.getLogger(name="scan")
 
     try:
-        logger.debug("Starting device scan (timeout=%ds)", TIMEOUT)
-        devices = await BleakScanner.discover(timeout=TIMEOUT, return_adv=True)
+        logger.debug("Starting device scan (timeout=%ds)", timeout)
+        devices = await BleakScanner.discover(timeout=timeout, return_adv=True)
     except BleakError as e:
         logger.error(e)
         raise e
 
     logger.debug("Found %d device(s)", len(devices))
-    printers = 0
+    printers = []
     for address, data in devices.values():
         logger.debug("> Found BLE device '%s' @ %s", address.name, address.address)
         manufacturer = data.manufacturer_data
@@ -38,13 +36,14 @@ async def scan() -> None:
             and address.name is not None
         ):
             logger.debug(">> Detected as a Xiqi device")
-            printers += 1
+            printers.append(address.address)
 
-    logger.info("Found %d printer(s)", printers)
+    logger.info("Found %d printer(s)", len(printers))
+    return printers
 
 
 def scan_sync():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     future = scan()
     return asyncio.run(future)
 
