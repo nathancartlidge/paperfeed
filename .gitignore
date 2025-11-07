@@ -1,4 +1,14 @@
+# virtual environments
 .venv
+
+# editor settings
 .idea
+.vscode
+
+# build artifacts
 *.egg-info
 __pycache__
+
+# font files
+*.ttf
+*.otf
