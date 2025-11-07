@@ -4,7 +4,8 @@ import logging
 from dataclasses import dataclass
 from typing import NamedTuple
 
-from bleak import BleakClient, BleakGATTCharacteristic
+from bleak import BleakClient
+from bleak.backends.characteristic import BleakGATTCharacteristic
 from tqdm import tqdm
 
 from paperfeed.driver.constants import FunnyPackets
@@ -66,6 +67,7 @@ class Driver(FunnyPackets):
 
     async def __aenter__(self):
         self._client = BleakClient(self.address)
+        assert self._client is not None
         await self._client.connect()
 
         if await self._handshake():
@@ -110,8 +112,8 @@ class Driver(FunnyPackets):
         return True
 
     async def _read_callback(self, sender: BleakGATTCharacteristic, data: bytearray):
-        header = data[0:2]
-        body = data[2:]
+        header = bytes(data[0:2])
+        body = bytes(data[2:])
 
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         timestamp = now.isoformat()
@@ -129,7 +131,7 @@ class Driver(FunnyPackets):
         elif header == self.PRINTING_PAUSED:
             self._logger.warning("Printing paused")
 
-    async def _write(self, data: bytes) -> None:
+    async def _write(self, data: bytes | bytearray) -> None:
         assert self._client is not None, "No client (call inside context mgr)"
         return await self._client.write_gatt_char(self.WRITE, data, response=False)
 

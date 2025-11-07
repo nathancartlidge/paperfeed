@@ -29,9 +29,9 @@ class HeadingText:
         with open(self._file, "rb") as f:
             self._font_data = f.read()
 
-        self._target_width = target_width
-        self._size_step = size_step
-        self._sizes = (min_size, max_size)
+        self._target_width: int = target_width
+        self._size_step: float = size_step
+        self._sizes: tuple[float, float] = (min_size, max_size)
 
     def render_text(
         self, text: str, split_size: float = 128, target_gap: int = 16
@@ -110,7 +110,7 @@ class HeadingText:
         """determine the 'optimal' font size using binary search"""
         self._logger.info("determining best size for %s", text)
         min_size, max_size = self._sizes
-        best_size = min_size
+        best_size: float = min_size
         size = sum(self._sizes) / 2
 
         iteration = 0
@@ -122,6 +122,10 @@ class HeadingText:
                 font, text=text, width=self._target_width + 200, height=500
             )
             bbox = img.getbbox()
+            if bbox is None:
+                raise ValueError(
+                    f"Render {iteration} (size={size}) produced an invalid bbox"
+                )
             img_width = int(bbox[2] - bbox[0])
 
             if img_width == self._target_width:

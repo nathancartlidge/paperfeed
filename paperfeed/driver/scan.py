@@ -7,7 +7,8 @@ https://github.com/ValdikSS/printer-driver-funnyprint/blob/cc61609c75d903366820f
 import asyncio
 import logging
 
-from bleak import BleakError, BleakScanner
+from bleak import BleakScanner
+from bleak.exc import BleakError
 
 
 async def scan(timeout: int = 1) -> list[str]:
