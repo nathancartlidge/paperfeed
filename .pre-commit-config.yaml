@@ -1,0 +1,21 @@
+repos:
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.8.17
+    hooks:
+      # ensure the lockfile is up to date.
+      - id: uv-lock
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.13.0"
+    hooks:
+      # lint for errors, automatically fixing where possible
+      - id: ruff-check
+        types_or: [ python, pyi ] # exclude jupyter notebooks
+        args: [ --fix ]
+      # fix PEP 8 formatting
+      - id: ruff-format
+        types_or: [ python, pyi ]
+
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply

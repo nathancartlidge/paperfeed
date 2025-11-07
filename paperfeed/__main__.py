@@ -1,12 +1,23 @@
 import asyncio
 import logging
 
-import numpy as np
-
 from paperfeed.driver import scan, Driver, Image
+from paperfeed.text import HeadingText
 
 
-async def run():
+async def run(preview: bool = True):
+    # make image to print
+    font = HeadingText("bebas_neue.ttf")
+    bitmap = font.render_text(text="Hello, World!", split_size=96)
+    image = Image(density=4, data=bitmap)
+
+    if preview:
+        bitmap.show(title="Preview Image")
+        continue_print = input("Continue? [Y/n] ")
+        if continue_print.lower() in ["n", "no"]:
+            return
+
+    # find the printer
     printers = await scan()
     if len(printers) == 0:
         raise RuntimeError("No printer found")
@@ -14,22 +25,21 @@ async def run():
         raise RuntimeError("Too many printers")
     printer = printers[0]
 
-    driver = Driver(printer)
+    # connect to the printer and print the image
+    async with Driver(printer) as d:
+        result = await d.print(image)
+        if result:
+            print("Successful Print")
+        else:
+            print("Print Failed")
+        print(d.status)
 
-    # diagonal lines
-    test_pattern = np.zeros((64, 384), dtype=bool)
-    test_pattern[2::3, 2::3] = True
-    test_pattern[1::3, ::3] = True
-    test_pattern[::3, 1::3] = True
-
-    async with driver:
-        await driver.print(Image(density=3, data=test_pattern))
-        print(driver.status)
 
 def run_sync():
     logging.basicConfig(level=logging.INFO)
     result = run()
     asyncio.run(result)
+
 
 if __name__ == "__main__":
     run_sync()

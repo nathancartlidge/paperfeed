@@ -18,7 +18,7 @@ class FunnyPackets:
     WRITE = UUID("0000ffe1-0000-1000-8000-00805f9b34fb")
     READ = UUID("0000ffe2-0000-1000-8000-00805f9b34fb")
 
-    DELAY: float = 0.02
+    DELAY: float = 0.025  # 40 LPS
 
     @staticmethod
     def density(density: int):
@@ -90,7 +90,11 @@ class FunnyPackets:
         Print Start/Stop packets.
         num_lines are "funny" lines, i.e. two raster lines combined.
         """
-        return FunnyPackets.PRINT_EVENT + num_lines.to_bytes(2, "big") + end.to_bytes(2, "little")
+        return (
+            FunnyPackets.PRINT_EVENT
+            + num_lines.to_bytes(2, "big")
+            + end.to_bytes(2, "little")
+        )
 
     @staticmethod
     def print_line(line_no: int, data: bytes):
