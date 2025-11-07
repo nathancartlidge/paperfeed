@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 from bleak import BleakClient, BleakGATTCharacteristic
+from tqdm import tqdm
 
 from paperfeed.driver.constants import FunnyPackets
 from paperfeed.driver.image import Image
@@ -99,7 +100,10 @@ class Driver(FunnyPackets):
         self._logger.debug("> Sending B packet")
         response_response = await self._query(self.response(self._address))
 
-        if response_response.header != self.HANDSHAKE_0B or response_response.body[0] != 0x01:
+        if (
+            response_response.header != self.HANDSHAKE_0B
+            or response_response.body[0] != 0x01
+        ):
             self._logger.warning("failed handshake response: %s", response_response)
             return False
 
@@ -116,12 +120,14 @@ class Driver(FunnyPackets):
         await self._messages.put(packet)
 
         if header == self.STATUS:
-            self._logger.info("New status")
+            self._logger.debug("New status")
             self._status = PrinterStatus.from_packet(packet)
             if self._status.overheat:
                 self._logger.warning("Printer Overheating!")
         elif header == self.LOST_PACKET:
             self._logger.warning("Lost packet")
+        elif header == self.PRINTING_PAUSED:
+            self._logger.warning("Printing paused")
 
     async def _write(self, data: bytes) -> None:
         assert self._client is not None, "No client (call inside context mgr)"
@@ -140,7 +146,7 @@ class Driver(FunnyPackets):
             raise ValueError("Header mismatch")
         return response
 
-    async def print(self, image: Image) -> bool:
+    async def print(self, image: Image, show_progress: bool = True) -> bool:
         assert self._client is not None, "No client (call inside context mgr)"
         lines = image.line_packets
 
@@ -150,9 +156,14 @@ class Driver(FunnyPackets):
 
         next_line = 0
         waiting_for_finish_count = 0
-        print_success = False
+        print_finished = False
 
-        while True:
+        packets = tqdm(
+            desc="Sending Packets", total=len(lines), disable=not show_progress
+        )
+        timeout = None
+
+        while not print_finished:
             if not self._messages.empty():
                 msg = await self._messages.get()
                 if msg.header == self.LOST_PACKET:
@@ -168,23 +179,35 @@ class Driver(FunnyPackets):
                     continue
                 elif msg.header == self.PRINTING_FINISHED:
                     # we have finished printing!
-                    print_success = True
+                    print_finished = True
 
             if next_line < len(lines):
                 line = lines[next_line]
                 await self._write(line)
                 next_line += 1
+                packets.update(1)
             else:
+                if timeout is None:
+                    packets.close()
+                    timeout = tqdm(
+                        desc="Waiting for Ack", total=len(lines) * 9, leave=False
+                    )
+
                 waiting_for_finish_count += 1
+                timeout.update(1)
 
             await asyncio.sleep(self.DELAY)
-            if waiting_for_finish_count >= 100:
-                # blocked for over 2 seconds waiting for a packet
-                print_success = False
+            if waiting_for_finish_count >= len(lines) * 9:
+                # it has taken 10 times as long to print this as we expected
+                print_finished = False
+                self._logger.info("Failed to finish, aborting")
                 break
+
+        if timeout is not None:
+            timeout.close()
 
         for command in image.end_messages:
             await self._write(command)
             await asyncio.sleep(self.DELAY)
 
-        return print_success
+        return print_finished
