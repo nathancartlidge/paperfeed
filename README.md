@@ -10,7 +10,7 @@ A hackable Python driver for 'Funnyprint' (DOLEWA / Xiqi)-branded mini thermal p
 To do this on your own printer, just run `uvx --from git+https://github.com/nathancartlidge/paperfeed demo`!
 
 ## Development / Usage
-This driver was developed with an assumed Python version of 3.12, however newer and older versions may also work.
+This driver was developed with an assumed Python version of 3.12. However, newer and older versions may also work.
 
 I used `uv` to manage dependencies; if you haven't seen it before, [try it out](https://docs.astral.sh/uv/getting-started/installation/)!
 However, it should be a standards-compliant `pyproject.toml`, so `pip install .` should also work fine.

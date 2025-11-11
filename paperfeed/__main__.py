@@ -8,7 +8,7 @@ from paperfeed.text import HeadingText
 async def run(preview: bool = True):
     # make image to print
     font = HeadingText("bebas_neue.ttf")
-    bitmap = font.render_text(text="Hello, World!", split_size=96)
+    bitmap = font.render(text="Hello, World!", split_size=96)
     image = Image(density=4, data=bitmap)
 
     if preview:
