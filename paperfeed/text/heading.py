@@ -43,10 +43,9 @@ class HeadingText(Text):
 
         images: list[tuple[Image.Image, int, int]] = []
         for line in lines:
-            line_img, gap = self._render_line(line, target_gap=target_gap)
+            line_img, bbox, gap = self._render_line(line, target_gap=target_gap)
 
             # check image width
-            bbox = line_img.getbbox()
             line_width = int(bbox[2] - bbox[0])
             assert line_width <= self._target_width, f"line too wide, got {line_width}!"
 
@@ -57,7 +56,7 @@ class HeadingText(Text):
         total_height = sum(image.height for image, _, _ in images) + sum(
             gap for _, gap, _ in images[:-1]
         )
-        image = Image.new("1", (self._target_width, total_height), 0)
+        image = Image.new("1", (self._target_width, total_height), 255)
 
         offset_y = 0
         for line_img, gap, offset_x in images:
@@ -66,7 +65,9 @@ class HeadingText(Text):
 
         return image
 
-    def _render_line(self, text: str, target_gap: int) -> tuple[Image.Image, int]:
+    def _render_line(
+        self, text: str, target_gap: int
+    ) -> tuple[Image.Image, tuple[int, int, int, int], int]:
         """render a line of text to fill a given width"""
         best_size = self._get_best_size(text)
         font = self.at_size(best_size)
@@ -85,10 +86,16 @@ class HeadingText(Text):
                 gap = max(gap // 2, gap - (img_height - na_height))
                 self._logger.debug("gap is %d (%d / %d)", gap, na_height, img_height)
 
+        # get the final bbox, just in case it has changed somehow
+        image_inv = self._render_text(
+            font, text, self._target_width + 20, img_height, invert=True
+        )
+        image_bbox = image_inv.getbbox()
+
         # render the image slightly wider to be safe - we trim later
         image = self._render_text(font, text, self._target_width + 20, img_height)
 
-        return image, gap
+        return image, image_bbox, gap
 
     def _get_best_size(self, text: str, max_iterations: int = 20) -> float:
         """determine the 'optimal' font size using binary search"""
@@ -103,7 +110,7 @@ class HeadingText(Text):
             self._logger.debug("iteration %d, attempting size %f", iteration, size)
             font = self.at_size(size)
             image = self._render_text(
-                font, text=text, width=self._target_width + 200, height=500
+                font, text=text, width=self._target_width + 200, height=500, invert=True
             )
             bbox = image.getbbox()
             if bbox is None:

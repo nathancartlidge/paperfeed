@@ -53,6 +53,7 @@ class Text:
         text: str,
         width: int = LINE_WIDTH,
         height: int = 100,
+        invert: bool = False,
     ) -> Image.Image:
         """
         (static method) Render text to a Pillow Image
@@ -60,14 +61,15 @@ class Text:
         :param text:
         :param width:
         :param height:
-        :param pad_x:
+        :param invert:
         :return:
         """
+        bg, fg = (0, 255) if invert else (255, 0)
         bbox = font.getbbox(text)
-        image = Image.new("L", (width, height), 0)
+        image = Image.new("L", (width, height), color=bg)
 
         draw = ImageDraw.Draw(image)
-        draw.text((-bbox[0], 1 - bbox[1]), text=text, font=font, fill=255)
+        draw.text((-bbox[0], 1 - bbox[1]), text=text, font=font, fill=fg)
 
         return to_1_bit(image)
 

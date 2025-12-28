@@ -10,9 +10,12 @@ dependencies = [
     "pillow>=12.0.0",
 ]
 
-[tool.uv]
-package = true
-
 [project.scripts]
 bt_detect = "paperfeed.driver.scan:scan_sync"
 demo = "paperfeed.__main__:run_sync"
+
+[tool.uv]
+package = true
+
+[tool.setuptools.packages.find]
+include = ["paperfeed*"]
