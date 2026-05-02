@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
@@ -72,8 +73,8 @@ class Image:
             raise TypeError(f"Unsupported type {type(self.data)}")
 
     @property
-    def funny_height(self):
-        return round(self.as_numpy.shape[0] / 2)
+    def funny_height(self) -> int:
+        return math.ceil(self.as_numpy.shape[0] / 2)
 
     @property
     def start_messages(self) -> list[bytes]:

@@ -1,18 +1,28 @@
 import asyncio
 import logging
 
-from paperfeed.driver import scan, Driver, Image
+from typing import Literal
+
+from paperfeed.driver import Driver, scan, Image
 from paperfeed.text import HeadingText
 
 
-async def run(preview: bool = True):
-    # make image to print
-    font = HeadingText("bebas_neue.ttf")
-    bitmap = font.render(text="Hello, World!", split_size=96)
-    image = Image(density=4, data=bitmap)
+async def run(mode: Literal["text", "image"] = "image", preview: bool = True):
+    if mode == "text":
+        # make image to print
+        font = HeadingText("bebas_neue.ttf")
+        bitmap = font.render(text="inversiontesting", split_size=96)
+        image = Image(density=4, data=bitmap)
+    else:
+        image = Image.from_file(
+            "../assets/crossword3.png",
+            threshold=140,
+            use_dithering=False,
+            trim_margins=True,
+        )
 
     if preview:
-        bitmap.show(title="Preview Image")
+        image.data.show(title="Preview Image")
         continue_print = input("Continue? [Y/n] ")
         if continue_print.lower() in ["n", "no"]:
             return
