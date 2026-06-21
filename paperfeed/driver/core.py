@@ -49,9 +49,10 @@ class PrinterStatus:
 
 
 class Driver(FunnyPackets):
-    def __init__(self, address: str):
+    def __init__(self, address: str, identifier: str | None = None):
         self._logger = logging.getLogger(self.__class__.__name__)
         self._address: str = address
+        self._ident: str = identifier or address
 
         self._client: BleakClient | None = None
         self._messages: asyncio.Queue[Packet] = asyncio.Queue()
@@ -59,14 +60,20 @@ class Driver(FunnyPackets):
 
     @property
     def address(self) -> str:
+        """MAC address"""
         return self._address
+
+    @property
+    def ident(self) -> str:
+        """OS Identifier. on all platforms but macOS, this should match the MAC address"""
+        return self._ident
 
     @property
     def status(self) -> PrinterStatus | None:
         return self._status
 
     async def __aenter__(self):
-        self._client = BleakClient(self.address)
+        self._client = BleakClient(self.ident)
         assert self._client is not None
         await self._client.connect()
 
